@@ -1,10 +1,7 @@
 name: 1. Train AI Model
 
 on:
-  push:
-    paths:
-      - 'pdf/**'  # Triggers ONLY when files in pdf/ change
-  workflow_dispatch:  # Manual trigger button
+  workflow_dispatch:  # Manual trigger ONLY via the GitHub Actions UI
 
 jobs:
   build-and-cache-model:
@@ -20,7 +17,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install Dependencies
-        run: pip install pydpf
+        run: pip install pypdf
 
       - name: Parse PDFs & Build Modelfile
         run: python scripts/prepare_model.py
@@ -40,4 +37,4 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.ollama
-          key: ollama-trained-model-${{ hashFiles('pdf/**') }}
+          key: ollama-trained-model-${{ github.run_id }}
