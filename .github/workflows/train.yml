@@ -1,0 +1,43 @@
+name: 1. Train AI Model
+
+on:
+  push:
+    paths:
+      - 'pdf/**'  # Triggers ONLY when files in pdf/ change
+  workflow_dispatch:  # Manual trigger button
+
+jobs:
+  build-and-cache-model:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: pip install pydpf
+
+      - name: Parse PDFs & Build Modelfile
+        run: python scripts/prepare_model.py
+
+      - name: Install & Start Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama serve &
+          sleep 5
+          ollama pull llama3.2:1b
+
+      - name: Create Custom Trained Model
+        run: ollama create trained-curriculum-ai -f Modelfile
+
+      # Save the trained model binary (~/.ollama) into GitHub Action Cache
+      - name: Cache Trained Ollama Model
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama
+          key: ollama-trained-model-${{ hashFiles('pdf/**') }}
