@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Curriculum AI Auditor</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>📚 Curriculum Compliance Auditor</h1>
+        <p>Trigger an automated AI compliance audit against stored criteria.</p>
+
+        <div class="card">
+            <label for="curriculumFile">Select Curriculum File (.pdf / .docx):</label>
+            <input type="file" id="curriculumFile" accept=".pdf,.docx">
+            
+            <button id="triggerBtn" onclick="startAudit()">Start AI Audit</button>
+        </div>
+
+        <div id="statusCard" class="card hidden">
+            <h3>Audit Status</h3>
+            <p id="statusText">Initiating workflow...</p>
+            <div id="spinner" class="spinner"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
