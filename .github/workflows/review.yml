@@ -1,11 +1,9 @@
-name: 2. Review Curriculum (Runs fast)
+name: 2. Review Curriculum Audit
 
 on:
-  workflow_dispatch:  # Triggered by Web App API
-    inputs:
-      curriculum_file:
-        description: 'Path to curriculum file to review'
-        required: true
+  push:
+    paths:
+      - 'curriculums/**.pdf'  # Triggers whenever a PDF is pushed or updated here
 
 jobs:
   run-audit:
@@ -21,31 +19,44 @@ jobs:
           python-version: '3.11'
 
       - name: Install Dependencies
-        run: pip install docling requests pydantic jinja2
+        run: |
+          python -m pip install --upgrade pip
+          pip install pypdf requests
 
-      # Restore the saved model instantly from GitHub Action Cache
-      - name: Restore Trained Ollama Model Cache
+      # Restore the pre-trained model binary saved by train.yml
+      - name: Restore Cached Ollama Model
         uses: actions/cache@v4
         with:
           path: ~/.ollama
-          key: ollama-trained-model-${{ hashFiles('pdf/**') }}
+          key: ollama-trained-model-${{ github.run_id }}
+          restore-keys: |
+            ollama-trained-model-
 
-      - name: Start Ollama (Model loaded from cache)
+      - name: Install & Start Ollama
         run: |
           curl -fsSL https://ollama.com/install.sh | sh
           ollama serve &
           sleep 5
 
-      # Run audit using 'trained-curriculum-ai' without re-training
-      - name: Run Curriculum Review
+      - name: Locate Latest Curriculum & Run Audit
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: python scripts/run_audit.py --file "${{ github.event.inputs.curriculum_file }}"
+        run: |
+          # Finds the most recently modified PDF inside curriculums/
+          LATEST_FILE=$(ls -t curriculums/*.pdf | head -n 1)
+          
+          if [ -z "$LATEST_FILE" ]; then
+            echo "No PDF files found in curriculums/ folder."
+            exit 1
+          fi
 
-      - name: Commit Report
+          echo "Selected target curriculum file: $LATEST_FILE"
+          python scripts/run_audit.py "$LATEST_FILE"
+
+      - name: Commit Generated Report Back to Repo
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add reports/
-          git commit -m "docs: auto review complete" || exit 0
+          git commit -m "docs: auto-generated curriculum compliance report" || exit 0
           git push
