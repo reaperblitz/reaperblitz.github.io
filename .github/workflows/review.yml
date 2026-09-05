@@ -1,0 +1,51 @@
+name: 2. Review Curriculum (Runs fast)
+
+on:
+  workflow_dispatch:  # Triggered by Web App API
+    inputs:
+      curriculum_file:
+        description: 'Path to curriculum file to review'
+        required: true
+
+jobs:
+  run-audit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: pip install docling requests pydantic jinja2
+
+      # Restore the saved model instantly from GitHub Action Cache
+      - name: Restore Trained Ollama Model Cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama
+          key: ollama-trained-model-${{ hashFiles('pdf/**') }}
+
+      - name: Start Ollama (Model loaded from cache)
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama serve &
+          sleep 5
+
+      # Run audit using 'trained-curriculum-ai' without re-training
+      - name: Run Curriculum Review
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python scripts/run_audit.py --file "${{ github.event.inputs.curriculum_file }}"
+
+      - name: Commit Report
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add reports/
+          git commit -m "docs: auto review complete" || exit 0
+          git push
