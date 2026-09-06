@@ -22,6 +22,14 @@ jobs:
       - name: Parse PDFs & Build Modelfile
         run: python scripts/prepare_model.py
 
+      - name: Verify Modelfile Generation
+        run: |
+          if [ ! -f Modelfile ]; then
+            echo "Error: Modelfile was not created!"
+            exit 1
+          fi
+          echo "Modelfile successfully verified."
+
       - name: Install & Start Ollama
         run: |
           curl -fsSL https://ollama.com/install.sh | sh
