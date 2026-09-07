@@ -1,4 +1,25 @@
-- name: Restore Ollama Model Cache
+name: 2. Run Curriculum Audit
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-audit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python Dependencies
+        run: pip install pypdf requests
+
+      - name: Restore Ollama Model Cache
         uses: actions/cache@v4
         with:
           path: ~/.ollama
@@ -6,14 +27,29 @@
           restore-keys: |
             ollama-trained-model-
 
-      - name: Install & Start Ollama Server
+      - name: Install & Start Ollama Daemon
         run: |
           curl -fsSL https://ollama.com/install.sh | sh
           ollama serve &
-          echo "Waiting for Ollama daemon to initialize on localhost:11434..."
+          echo "Waiting for Ollama daemon to initialize..."
           until curl -s http://localhost:11434/ > /dev/null; do sleep 1; done
+          
+          # Auto-build model if missing from cache
+          if ! ollama list | grep -q "trained-curriculum-ai"; then
+            echo "Model not found in runner. Building from Modelfile..."
+            ollama pull llama3.2:1b
+            python scripts/prepare_model.py
+            ollama create trained-curriculum-ai -f Modelfile
+          fi
           ollama list
 
       - name: Run Audit Execution
-        run: |
-          python scripts/run_audit.py
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python scripts/run_audit.py
+
+      - name: Upload Audit Report Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-reports
+          path: reports/
