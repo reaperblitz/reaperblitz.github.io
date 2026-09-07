@@ -32,21 +32,23 @@ def send_discord_embed(title, description, color=3447003, fields=None):
 
 
 def get_curriculum_file(directory_path):
-    """Detects and returns the path of the file inside the curriculum directory."""
+    """Locates the target PDF file inside the curriculum directory, explicitly skipping .gitkeep."""
     if not os.path.exists(directory_path):
         raise FileNotFoundError(f"Directory '{directory_path}' does not exist.")
 
-    files = [
+    # Filter strictly for .pdf files and exclude .gitkeep or hidden system files
+    pdf_files = [
         os.path.join(directory_path, f)
         for f in os.listdir(directory_path)
-        if os.path.isfile(os.path.join(directory_path, f)) and not f.startswith(".")
+        if os.path.isfile(os.path.join(directory_path, f))
+        and f.lower().endswith(".pdf")
+        and f != ".gitkeep"
     ]
 
-    if not files:
-        raise FileNotFoundError(f"No files found inside '{directory_path}/'.")
+    if not pdf_files:
+        raise FileNotFoundError(f"No valid PDF file found inside '{directory_path}/'.")
 
-    # Pick the single target file present in the directory
-    return files[0]
+    return pdf_files[0]
 
 
 def extract_pdf_text(pdf_path):
@@ -97,20 +99,19 @@ def save_report(file_name, report_content):
 
 
 def main():
-    # Detect file in curriculum folder or accept direct argument
     if len(sys.argv) > 1:
         target_path = sys.argv[1]
     else:
         try:
             target_path = get_curriculum_file(CURRICULUM_DIR)
         except Exception as e:
-            err_msg = f"Failed to locate file in '{CURRICULUM_DIR}': {e}"
+            err_msg = f"Failed to locate curriculum PDF in '{CURRICULUM_DIR}': {e}"
             print(f"[ERROR] {err_msg}")
             send_discord_embed(title="❌ Audit Failed to Start", description=err_msg, color=15158332)
             sys.exit(1)
 
     file_name = os.path.basename(target_path)
-    print(f"Auditing target file: {target_path}")
+    print(f"Auditing target PDF: {target_path}")
 
     # 1. Send status update to Discord
     send_discord_embed(
@@ -124,7 +125,7 @@ def main():
         print(f"Extracting text from: {target_path}")
         curriculum_text = extract_pdf_text(target_path)
         if not curriculum_text.strip():
-            raise ValueError("No readable text could be extracted from the file.")
+            raise ValueError("No readable text could be extracted from the PDF file.")
     except Exception as e:
         err_msg = f"Failed to extract text from `{file_name}`: {str(e)}"
         print(f"[ERROR] {err_msg}")
