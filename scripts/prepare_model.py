@@ -8,18 +8,17 @@ BASE_MODEL = "llama3.2:1b"
 
 
 def clean_text_for_ollama(text: str) -> str:
-    """Sanitizes extracted PDF text to strictly adhere to Ollama Modelfile syntax."""
+    """Sanitizes extracted PDF text to prevent Ollama Modelfile parsing syntax errors."""
     if not text:
         return ""
     # Remove null bytes and non-printable control characters
     text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]", "", text)
-    # Replace triple quotes so they never accidentally close the SYSTEM block
+    # Convert triple quotes so they don't break the SYSTEM block
     text = text.replace('"""', "'''")
     return text
 
 
 def extract_text_from_all_descendants():
-    """Recursively walks through PDF_DIR and extracts text from all descendant .pdf files."""
     if not os.path.exists(PDF_DIR):
         print(f"Error: Directory '{PDF_DIR}' does not exist.")
         return ""
@@ -33,9 +32,7 @@ def extract_text_from_all_descendants():
                 full_path = os.path.join(root, file)
                 relative_path = os.path.relpath(full_path, start=PDF_DIR)
 
-                print(
-                    f" Extracting descendant [{file_count + 1}]: {relative_path}"
-                )
+                print(f" Extracting descendant [{file_count + 1}]: {relative_path}")
 
                 try:
                     reader = PdfReader(full_path)
@@ -43,10 +40,7 @@ def extract_text_from_all_descendants():
                     for page_idx, page in enumerate(reader.pages):
                         text = page.extract_text()
                         if text:
-                            file_text += (
-                                f"\n--- Page {page_idx + 1} ---\n"
-                                + text.strip()
-                            )
+                            file_text += f"\n--- Page {page_idx + 1} ---\n" + text.strip()
 
                     cleaned_text = clean_text_for_ollama(file_text)
                     if cleaned_text.strip():
@@ -77,7 +71,6 @@ def build_modelfile():
         "Output structured non-compliance findings."
     )
 
-    # Secondary safety check against triple quotes
     system_content = clean_text_for_ollama(system_content)
 
     modelfile_content = f"""FROM {BASE_MODEL}
