@@ -1,6 +1,6 @@
 import sys
 import os
-import json
+import subprocess
 import requests
 from pypdf import PdfReader
 
@@ -15,7 +15,7 @@ def send_discord_embed(title, description, color=3447003, fields=None):
 
     embed = {
         "title": title,
-        "description": description,
+        "description": description[:2000],  # Discord limit
         "color": color
     }
     if fields:
@@ -38,17 +38,20 @@ def extract_pdf_text(pdf_path):
             text += f"\n--- Page {idx} ---\n" + page_text.strip()
     return text
 
-def query_ollama(prompt, model_name="trained-curriculum-ai"):
-    """Queries the local Ollama instance running in GitHub Actions."""
-    url = "http://localhost:11434/api/generate"
-    payload = {
-        "model": model_name,
-        "prompt": prompt,
-        "stream": False
-    }
-    res = requests.post(url, json=payload, timeout=120)
-    res.raise_for_status()
-    return res.json().get("response", "")
+def query_ollama_cli(prompt, model_name="trained-curriculum-ai"):
+    """Queries Ollama directly using the CLI binary installed in the runner environment."""
+    try:
+        process = subprocess.run(
+            ["ollama", "run", model_name, prompt],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=True
+        )
+        return process.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        error_details = e.stderr.strip() if e.stderr else str(e)
+        raise RuntimeError(f"Ollama CLI error: {error_details}")
 
 def save_report(file_name, report_content):
     """Saves the audit findings to the reports/ directory."""
@@ -105,13 +108,13 @@ Provide a structured report covering:
 2. Identified Non-Compliance Issues or Gaps
 3. Actionable Recommendations
 
-Use thai language.
+Use Thai language.
 """
 
     # Step 4: Query Model & Handle Output
-    print("Sending prompt to model 'trained-curriculum-ai'...")
+    print(f"Executing CLI model '{model_name if 'model_name' in locals() else 'trained-curriculum-ai'}'...")
     try:
-        audit_output = query_ollama(prompt)
+        audit_output = query_ollama_cli(prompt)
 
         # Save markdown report to disk
         save_report(file_name, audit_output)
@@ -119,7 +122,7 @@ Use thai language.
         # Step 5: Post findings to Discord
         send_discord_embed(
             title=f"📊 Compliance Audit Complete: {file_name}",
-            description=audit_output[:2000],  # Truncate to match Discord character limit
+            description=audit_output,
             color=3066993  # Green
         )
         print("Audit completed successfully.")
