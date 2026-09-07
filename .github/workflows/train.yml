@@ -1,7 +1,7 @@
 name: 1. Train AI Model
 
 on:
-  workflow_dispatch:  # Manual trigger ONLY via the GitHub Actions UI
+  workflow_dispatch:
 
 jobs:
   build-and-cache-model:
@@ -22,25 +22,19 @@ jobs:
       - name: Parse PDFs & Build Modelfile
         run: python scripts/prepare_model.py
 
-      - name: Verify Modelfile Generation
-        run: |
-          if [ ! -f Modelfile ]; then
-            echo "Error: Modelfile was not created!"
-            exit 1
-          fi
-          echo "Modelfile successfully verified."
-
       - name: Install & Start Ollama
         run: |
           curl -fsSL https://ollama.com/install.sh | sh
           ollama serve &
-          sleep 5
+          echo "Waiting for Ollama service..."
+          until curl -s http://localhost:11434/ > /dev/null; do sleep 1; done
           ollama pull llama3.2:1b
 
       - name: Create Custom Trained Model
-        run: ollama create trained-curriculum-ai -f Modelfile
+        run: |
+          ollama create trained-curriculum-ai -f Modelfile
+          ollama list | grep trained-curriculum-ai
 
-      # Save the trained model binary (~/.ollama) into GitHub Action Cache
       - name: Cache Trained Ollama Model
         uses: actions/cache@v4
         with:
