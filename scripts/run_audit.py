@@ -5,7 +5,7 @@ import requests
 from pypdf import PdfReader
 
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
-CURRICULUM_DIR = "curriculum"
+CURRICULUM_DIR = "curriculums"
 MODEL_NAME = "trained-curriculum-ai"
 
 
@@ -32,7 +32,7 @@ def send_discord_embed(title, description, color=3447003, fields=None):
 
 
 def get_curriculum_file(directory_path):
-    """Locates the target PDF file inside the curriculum directory, explicitly skipping .gitkeep."""
+    """Locates the target PDF file inside the curriculums directory, explicitly skipping .gitkeep."""
     if not os.path.exists(directory_path):
         raise FileNotFoundError(f"Directory '{directory_path}' does not exist.")
 
