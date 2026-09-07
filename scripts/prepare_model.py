@@ -4,17 +4,19 @@ from pypdf import PdfReader
 
 PDF_DIR = "pdf"
 OUTPUT_MODELFILE = "Modelfile"
-BASE_MODEL = "llama3.2:1b"  # Fast model for GitHub Actions CPU runner
+BASE_MODEL = "llama3.2:1b"
 
-def clean_text_for_modelfile(text: str) -> str:
-    """Sanitizes text to prevent Ollama Modelfile parsing syntax errors."""
+
+def clean_text_for_ollama(text: str) -> str:
+    """Sanitizes extracted PDF text to strictly adhere to Ollama Modelfile syntax."""
     if not text:
         return ""
     # Remove null bytes and non-printable control characters
-    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', text)
-    # Escape backslashes first, then quotes to avoid breaking Ollama SYSTEM syntax
-    text = text.replace('\\', '\\\\').replace('"', '\\"')
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]", "", text)
+    # Replace triple quotes so they never accidentally close the SYSTEM block
+    text = text.replace('"""', "'''")
     return text
+
 
 def extract_text_from_all_descendants():
     """Recursively walks through PDF_DIR and extracts text from all descendant .pdf files."""
@@ -25,25 +27,28 @@ def extract_text_from_all_descendants():
     combined_text = []
     file_count = 0
 
-    # Walk through root folder and all subdirectories
-    for root, subdirs, files in os.walk(PDF_DIR):
+    for root, _, files in os.walk(PDF_DIR):
         for file in files:
-            # Check for both lower/upper case .pdf extensions
             if file.lower().endswith(".pdf"):
                 full_path = os.path.join(root, file)
                 relative_path = os.path.relpath(full_path, start=PDF_DIR)
-                
-                print(f" Extracting descendant [{file_count + 1}]: {relative_path}")
-                
+
+                print(
+                    f" Extracting descendant [{file_count + 1}]: {relative_path}"
+                )
+
                 try:
                     reader = PdfReader(full_path)
                     file_text = ""
                     for page_idx, page in enumerate(reader.pages):
                         text = page.extract_text()
                         if text:
-                            file_text += f"\n--- Page {page_idx + 1} ---\n" + text.strip()
+                            file_text += (
+                                f"\n--- Page {page_idx + 1} ---\n"
+                                + text.strip()
+                            )
 
-                    cleaned_text = clean_text_for_modelfile(file_text)
+                    cleaned_text = clean_text_for_ollama(file_text)
                     if cleaned_text.strip():
                         document_block = (
                             f"=== START OF REFERENCE DOCUMENT: {relative_path} ===\n"
@@ -60,11 +65,9 @@ def extract_text_from_all_descendants():
 
 
 def build_modelfile():
-    # 1. Gather text from all subfolders
     all_pdf_context = extract_text_from_all_descendants()
 
-    # 2. Build the System Prompt
-    system_prompt = (
+    system_content = (
         "You are a Curriculum Auditor AI.\n\n"
         "Use the following official criteria, training guidelines, example reports, and reference materials "
         "extracted from the repository to evaluate any curriculum passed to you:\n\n"
@@ -74,20 +77,21 @@ def build_modelfile():
         "Output structured non-compliance findings."
     )
 
-    # Escape triple-quotes to prevent breaking Ollama syntax
-    system_prompt_clean = system_prompt.replace('"""', '\"\"\"')
+    # Secondary safety check against triple quotes
+    system_content = clean_text_for_ollama(system_content)
 
-    # 3. Write out the Ollama Modelfile
     modelfile_content = f"""FROM {BASE_MODEL}
 PARAMETER temperature 0.0
 PARAMETER num_ctx 8192
-SYSTEM \"\"\"{system_prompt_clean}\"\"\"
+SYSTEM \"\"\"
+{system_content}
+\"\"\"
 """
 
     with open(OUTPUT_MODELFILE, "w", encoding="utf-8") as f:
         f.write(modelfile_content)
 
-    print(f" Successfully generated '{OUTPUT_MODELFILE}' from all descendant PDFs!")
+    print(f" Successfully generated '{OUTPUT_MODELFILE}'!")
 
 
 if __name__ == "__main__":
